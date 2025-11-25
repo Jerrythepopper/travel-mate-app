@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "[https://Jerrythepopper.github.io/travel-mate-app](https://Jerrythepopper.github.io/travel-mate-app)",
+  "homepage": "[https://github.com/Jerrythepopper/travel-mate-app](https://github.com/Jerrythepopper/travel-mate-app)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
