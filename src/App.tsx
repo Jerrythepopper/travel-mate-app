@@ -3,9 +3,9 @@ import {
   MapPin, Calendar, DollarSign, BookOpen, Settings, 
   Plus, Trash2, ExternalLink, Cloud, Save, User,
   Train, Plane, Coffee, Camera, Ticket, Wallet,
-  ArrowRight, Thermometer, Droplets, History, Eye, EyeOff, Waypoints,
+  ArrowRight, Thermometer, Droplets, History, Eye, EyeOff,
   AlertCircle, CheckCircle, RefreshCw, Edit2, Users, Link as LinkIcon, CloudSun,
-  Wind, Calculator, PieChart, ArrowLeftRight
+  Wind, Calculator, PieChart, ArrowLeftRight, Navigation
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -213,7 +213,9 @@ export default function TravelApp() {
     if (!user || !db) return;
 
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
-    const basePath = `artifacts/${appId}/users/${user.uid}`;
+    // Sanitize appId to ensure it has no special characters like slashes that break Firestore paths
+    const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
 
     const unsubItinerary = onSnapshot(query(collection(db, basePath, 'itinerary')), (snap) => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -296,7 +298,7 @@ export default function TravelApp() {
       const data = await res.json();
       
       if (res.ok) {
-        alert(`🌤️ ${itemTitle} (${queryCity}) 天氣：\n\n狀況：${data.weather[0].description}\n溫度：${Math.round(data.main.temp)}°C\n體感：${Math.round(data.main.feels_like)}°C\n濕度：${data.main.humidity}%`);
+        alert(`🌤️ ${itemTitle} (${queryCity}) 天氣：\n\n狀況：${data.weather?.[0]?.description}\n溫度：${Math.round(data.main.temp)}°C\n體感：${Math.round(data.main.feels_like)}°C\n濕度：${data.main.humidity}%`);
         setStatusMsg(null);
       } else {
         alert(`查詢失敗：${data.message}`);
@@ -382,7 +384,9 @@ export default function TravelApp() {
   const handleSubmit = async () => {
     if (!user || !db) return;
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
-    const basePath = `artifacts/${appId}/users/${user.uid}`;
+    // Sanitize appId
+    const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
     const coll = modalType === 'itinerary' ? 'itinerary' : modalType === 'expense' ? 'expenses' : 'notes';
 
     try {
@@ -414,7 +418,8 @@ export default function TravelApp() {
     e.stopPropagation();
     if (!confirm("確定要刪除嗎？")) return;
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
-    const basePath = `artifacts/${appId}/users/${user.uid}`;
+    const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
     await deleteDoc(doc(db, basePath, collectionName, id));
   };
 
@@ -937,7 +942,7 @@ export default function TravelApp() {
                         variant="action" 
                         className="!py-1 !px-3 text-xs h-8"
                       >
-                        <Waypoints size={14} /> 地圖路線
+                        <Navigation size={14} /> 地圖路線
                       </Button>
                    )}
                 </div>
