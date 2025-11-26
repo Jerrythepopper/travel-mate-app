@@ -100,10 +100,10 @@ export default function TravelApp() {
   const [itinerary, setItinerary] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [notes, setNotes] = useState([]);
-  const [checklists, setChecklists] = useState([]); // 新增：檢查清單
+  const [checklists, setChecklists] = useState([]); 
   
   // UI 狀態
-  const [selectedDate, setSelectedDate] = useState(null); // 行程當前選中的日期
+  const [selectedDate, setSelectedDate] = useState(null);
   const [configMode, setConfigMode] = useState('auto');
   
   // 設定狀態
@@ -132,9 +132,8 @@ export default function TravelApp() {
   // 結算設定
   const [settlementPeopleCount, setSettlementPeopleCount] = useState(0);
 
-  // 臨時狀態：用於顯示票券
+  // 臨時狀態
   const [previewNote, setPreviewNote] = useState(null);
-  // 臨時狀態：用於顯示天氣 Modal
   const [previewWeather, setPreviewWeather] = useState(null);
 
   // --- 初始化邏輯 ---
@@ -150,7 +149,6 @@ export default function TravelApp() {
       setAuth(authInstance);
       setDb(dbInstance);
 
-      // 修正：設定持久性，確保重新整理後 ID 不變
       await setPersistence(authInstance, browserLocalPersistence);
       await signInAnonymously(authInstance);
       
@@ -174,7 +172,7 @@ export default function TravelApp() {
       const savedConfig = localStorage.getItem('travel_firebase_config');
       const savedWeatherKey = localStorage.getItem('travel_weather_key');
       const savedCity = localStorage.getItem('travel_city_name');
-      const savedCurrency = localStorage.getItem('travel_currency_code'); // 讀取貨幣設定
+      const savedCurrency = localStorage.getItem('travel_currency_code'); 
       
       if (savedConfig) setFirebaseConfigStr(savedConfig);
       if (savedWeatherKey) setWeatherApiKey(savedWeatherKey);
@@ -218,36 +216,63 @@ export default function TravelApp() {
     if (!user || !db) return;
 
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
-    // Sanitize appId to ensure it has no special characters like slashes that break Firestore paths
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    const basePath = `artifacts/${safeAppId}/public/data`; // 使用公共路徑
 
-    const unsubItinerary = onSnapshot(query(collection(db, basePath, 'itinerary')), (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => {
-        if ((a.date || '') !== (b.date || '')) return (a.date || '').localeCompare(b.date || '');
-        return (a.time || '').localeCompare(b.time || '');
-      });
-      setItinerary(items);
-    }, (err) => console.error("Itinerary Error:", err));
+    // 錯誤處理 helper
+    const handleSnapshotError = (err, source) => {
+      console.error(`${source} Error:`, err);
+      if (err.code === 'permission-denied') {
+        setStatusMsg({ 
+          type: 'error', 
+          text: '權限不足！請到 Firebase Console -> Firestore Database -> Rules，將規則改成 allow read, write: if request.auth != null;' 
+        });
+      } else {
+        setStatusMsg({ type: 'error', text: `${source} 讀取失敗: ${err.message}` });
+      }
+    };
 
-    const unsubExpenses = onSnapshot(query(collection(db, basePath, 'expenses')), (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-      setExpenses(items);
-    }, (err) => console.error("Expenses Error:", err));
+    const unsubItinerary = onSnapshot(
+      query(collection(db, basePath, 'itinerary')), 
+      (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => {
+          if ((a.date || '') !== (b.date || '')) return (a.date || '').localeCompare(b.date || '');
+          return (a.time || '').localeCompare(b.time || '');
+        });
+        setItinerary(items);
+      }, 
+      (err) => handleSnapshotError(err, 'Itinerary')
+    );
 
-    const unsubNotes = onSnapshot(query(collection(db, basePath, 'notes')), (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      setNotes(items);
-    }, (err) => console.error("Notes Error:", err));
+    const unsubExpenses = onSnapshot(
+      query(collection(db, basePath, 'expenses')), 
+      (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        setExpenses(items);
+      }, 
+      (err) => handleSnapshotError(err, 'Expenses')
+    );
 
-    const unsubChecklists = onSnapshot(query(collection(db, basePath, 'checklists')), (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // 不特別排序，依照建立時間或預設
-      setChecklists(items);
-    }, (err) => console.error("Checklists Error:", err));
+    const unsubNotes = onSnapshot(
+      query(collection(db, basePath, 'notes')), 
+      (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        setNotes(items);
+      }, 
+      (err) => handleSnapshotError(err, 'Notes')
+    );
+
+    const unsubChecklists = onSnapshot(
+      query(collection(db, basePath, 'checklists')), 
+      (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setChecklists(items);
+      }, 
+      (err) => handleSnapshotError(err, 'Checklists')
+    );
 
     return () => {
       unsubItinerary();
@@ -260,7 +285,6 @@ export default function TravelApp() {
   // --- 外部 API (天氣與匯率) ---
 
   useEffect(() => {
-    // 獲取天氣
     if (weatherApiKey && cityName) {
       setWeatherError(null);
       fetch(`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&units=metric&appid=${weatherApiKey}&lang=zh_tw`)
@@ -279,7 +303,6 @@ export default function TravelApp() {
        setWeatherError("未設定 API Key");
     }
 
-    // 獲取匯率 (Base: TWD)
     fetch('https://api.exchangerate-api.com/v4/latest/TWD')
       .then(res => res.json())
       .then(data => setExchangeRate(data))
@@ -305,7 +328,6 @@ export default function TravelApp() {
     const queryCity = targetCity || cityName; 
     
     try {
-      // 顯示載入中
       setPreviewWeather({ city: queryCity, title: itemTitle, loading: true });
       
       const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${queryCity}&units=metric&appid=${weatherApiKey}&lang=zh_tw`);
@@ -376,7 +398,6 @@ export default function TravelApp() {
       
       if (success) {
         setStatusMsg({ type: 'success', text: '🎉 連線成功！' });
-        // 這裡可以初始化 checklist 範本
         initDefaultChecklists(configToSave);
       }
 
@@ -385,19 +406,14 @@ export default function TravelApp() {
     }
   };
 
-  // 初始化 Checklists (如果沒有的話)
-  const initDefaultChecklists = async (config) => {
-    // 等待 user 狀態更新可能有點慢，這裡只做簡單檢查
-    // 實際應用通常在後端或更嚴謹的邏輯做
-  };
+  const initDefaultChecklists = async (config) => {};
 
   const handleToggleCheckItem = async (listId, itemId, currentStatus) => {
     if (!user || !db) return;
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    const basePath = `artifacts/${safeAppId}/public/data`;
     
-    // 找到該 list
     const list = checklists.find(l => l.id === listId);
     if (!list) return;
 
@@ -416,7 +432,7 @@ export default function TravelApp() {
 
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    const basePath = `artifacts/${safeAppId}/public/data`;
 
     await addDoc(collection(db, basePath, 'checklists'), {
       category: catName,
@@ -427,12 +443,12 @@ export default function TravelApp() {
   const handleAddCheckItem = async (listId, e) => {
     if (e.key === 'Enter' && e.target.value.trim()) {
       const newItemName = e.target.value.trim();
-      e.target.value = ''; // 清空輸入框
+      e.target.value = ''; 
 
       if (!user || !db) return;
       const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
       const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+      const basePath = `artifacts/${safeAppId}/public/data`;
 
       const list = checklists.find(l => l.id === listId);
       if (!list) return;
@@ -448,14 +464,14 @@ export default function TravelApp() {
     if (!confirm("確定要刪除這個分類清單嗎？")) return;
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    const basePath = `artifacts/${safeAppId}/public/data`;
     await deleteDoc(doc(db, basePath, 'checklists', listId));
   };
 
   const openAddModal = (type) => {
     setModalType(type);
     setEditId(null);
-    setFormData({ currency: 'TWD', payer: '我' }); // 預設值
+    setFormData({ currency: 'TWD', payer: '我' }); 
     setIsModalOpen(true);
   };
 
@@ -469,9 +485,8 @@ export default function TravelApp() {
   const handleSubmit = async () => {
     if (!user || !db) return;
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
-    // Sanitize appId
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    const basePath = `artifacts/${safeAppId}/public/data`;
     const coll = modalType === 'itinerary' ? 'itinerary' : modalType === 'expense' ? 'expenses' : 'notes';
 
     try {
@@ -504,7 +519,7 @@ export default function TravelApp() {
     if (!confirm("確定要刪除嗎？")) return;
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    const basePath = `artifacts/${safeAppId}/public/data`;
     await deleteDoc(doc(db, basePath, collectionName, id));
   };
 
@@ -527,10 +542,8 @@ export default function TravelApp() {
     return dates;
   }, [itinerary]);
 
-  // 初始化或切換選中日期
   useEffect(() => {
     if (uniqueItineraryDates.length > 0 && !selectedDate) {
-      // 預設選中最早的日期，或者今天（如果今天有行程）
       const today = new Date().toISOString().split('T')[0];
       if (uniqueItineraryDates.includes(today)) {
         setSelectedDate(today);
@@ -574,7 +587,7 @@ export default function TravelApp() {
   }, [expenses, exchangeRate]);
 
   const settlementData = useMemo(() => {
-    const payers = {}; // { 'name': totalPaidTWD }
+    const payers = {}; 
     
     expenses.forEach(e => {
       const payerName = e.payer || '我';
@@ -583,7 +596,6 @@ export default function TravelApp() {
     });
 
     const uniquePayers = Object.keys(payers);
-    // 如果使用者沒手動設定人數，預設為付款人人數，最少1人
     const count = settlementPeopleCount > 0 ? settlementPeopleCount : (uniquePayers.length || 1);
     const average = totalExpenseTWD / count;
 
@@ -916,8 +928,9 @@ export default function TravelApp() {
             <h1 className="font-bold text-lg">TravelMate</h1>
           </div>
           <div className="flex gap-3">
-             <div className="text-xs bg-blue-700/50 px-2 py-1 rounded-full flex items-center gap-1">
-               <User size={12}/> {user ? '已連線' : '離線'}
+             {/* 公共共享模式：所有人都連線到同一個公共區 */}
+             <div className="text-xs bg-emerald-600/90 px-3 py-1 rounded-full flex items-center gap-1 shadow-sm border border-emerald-400/50 font-medium text-white">
+               <Users size={12}/> 共享模式
              </div>
           </div>
         </div>
@@ -1476,7 +1489,7 @@ export default function TravelApp() {
             </Card>
 
             <div className="text-center text-xs text-slate-400 mt-8">
-              TravelMate v6.1 • 資料儲存於您個人的 Firebase
+              TravelMate v6.2 • 資料儲存於您個人的 Firebase
             </div>
           </div>
         )}
