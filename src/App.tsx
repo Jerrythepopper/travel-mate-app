@@ -20,6 +20,16 @@ import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browser
  */
 const DEFAULT_APP_ID = "my-travel-plan";
 
+// 類別中文對照表
+const CATEGORY_MAP = {
+  'food': '餐飲',
+  'transport': '交通',
+  'shopping': '購物',
+  'ticket': '門票',
+  'stay': '住宿',
+  'other': '其他'
+};
+
 // --- 輔助組件 ---
 
 const Card = ({ children, className = "" }) => (
@@ -89,7 +99,7 @@ const Select = ({ label, value, onChange, options }) => (
 export default function TravelApp() {
   // --- 狀態管理 ---
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [budgetView, setBudgetView] = useState('list'); // 'list' | 'settlement'
+  const [budgetView, setBudgetView] = useState('list');
   const [db, setDb] = useState(null);
   const [auth, setAuth] = useState(null);
   const [user, setUser] = useState(null);
@@ -100,7 +110,7 @@ export default function TravelApp() {
   const [itinerary, setItinerary] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [notes, setNotes] = useState([]);
-  const [checklists, setChecklists] = useState([]); 
+  const [checklists, setChecklists] = useState([]);
   
   // UI 狀態
   const [selectedDate, setSelectedDate] = useState(null);
@@ -115,7 +125,6 @@ export default function TravelApp() {
   const [weatherError, setWeatherError] = useState(null); 
   const [exchangeRate, setExchangeRate] = useState(null); 
 
-  // 手動設定狀態
   const [manualConfig, setManualConfig] = useState({
     apiKey: '',
     authDomain: '',
@@ -129,10 +138,7 @@ export default function TravelApp() {
   const [editId, setEditId] = useState(null); 
   const [formData, setFormData] = useState({});
 
-  // 結算設定
   const [settlementPeopleCount, setSettlementPeopleCount] = useState(0);
-
-  // 臨時狀態
   const [previewNote, setPreviewNote] = useState(null);
   const [previewWeather, setPreviewWeather] = useState(null);
 
@@ -172,7 +178,7 @@ export default function TravelApp() {
       const savedConfig = localStorage.getItem('travel_firebase_config');
       const savedWeatherKey = localStorage.getItem('travel_weather_key');
       const savedCity = localStorage.getItem('travel_city_name');
-      const savedCurrency = localStorage.getItem('travel_currency_code'); 
+      const savedCurrency = localStorage.getItem('travel_currency_code');
       
       if (savedConfig) setFirebaseConfigStr(savedConfig);
       if (savedWeatherKey) setWeatherApiKey(savedWeatherKey);
@@ -217,9 +223,8 @@ export default function TravelApp() {
 
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const basePath = `artifacts/${safeAppId}/public/data`; // 使用公共路徑
+    const basePath = `artifacts/${safeAppId}/public/data`; 
 
-    // 錯誤處理 helper
     const handleSnapshotError = (err, source) => {
       console.error(`${source} Error:`, err);
       if (err.code === 'permission-denied') {
@@ -471,7 +476,13 @@ export default function TravelApp() {
   const openAddModal = (type) => {
     setModalType(type);
     setEditId(null);
-    setFormData({ currency: 'TWD', payer: '我' }); 
+    // 修正：預設 category 為 'food'，避免 undefined 顯示
+    setFormData({ 
+      currency: 'TWD', 
+      payer: '我',
+      category: 'food',
+      type: 'sightseeing'
+    }); 
     setIsModalOpen(true);
   };
 
@@ -497,6 +508,8 @@ export default function TravelApp() {
         data.splitCount = parseInt(formData.splitCount || 1);
         data.currency = formData.currency || 'TWD';
         data.payer = formData.payer || '我';
+        // 確保有預設值，防止 undefined
+        data.category = formData.category || 'food';
       }
 
       if (editId) {
@@ -581,7 +594,9 @@ export default function TravelApp() {
     const cats = {};
     expenses.forEach(e => {
       const twdVal = calculateTwdAmount(e.amount, e.currency || 'TWD');
-      cats[e.category] = (cats[e.category] || 0) + twdVal;
+      // 使用安全的預設值
+      const catKey = e.category || 'other';
+      cats[catKey] = (cats[catKey] || 0) + twdVal;
     });
     return cats;
   }, [expenses, exchangeRate]);
@@ -743,6 +758,7 @@ export default function TravelApp() {
                     {value: 'shopping', label: '購物'},
                     {value: 'ticket', label: '門票'},
                     {value: 'stay', label: '住宿'},
+                    {value: 'other', label: '其他'},
                   ]} 
                 />
               </>
@@ -1189,7 +1205,7 @@ export default function TravelApp() {
               <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
                  {Object.entries(expensesByCategory).map(([cat, amount]) => (
                    <div key={cat} className="flex-shrink-0 bg-slate-700 px-3 py-1 rounded-lg text-xs">
-                     <span className="opacity-70 mr-1">{cat}:</span>
+                     <span className="opacity-70 mr-1">{CATEGORY_MAP[cat] || cat}:</span>
                      <span className="font-bold">${Math.round(amount).toLocaleString()}</span>
                    </div>
                  ))}
@@ -1489,7 +1505,7 @@ export default function TravelApp() {
             </Card>
 
             <div className="text-center text-xs text-slate-400 mt-8">
-              TravelMate v6.2 • 資料儲存於您個人的 Firebase
+              TravelMate v6.3 • 資料儲存於您個人的 Firebase
             </div>
           </div>
         )}
