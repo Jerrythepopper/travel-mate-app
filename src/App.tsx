@@ -13,7 +13,7 @@ import {
   query, orderBy, deleteDoc, doc, updateDoc,
   enableIndexedDbPersistence, setDoc
 } from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
 /**
  * 系統預設設定
@@ -150,6 +150,8 @@ export default function TravelApp() {
       setAuth(authInstance);
       setDb(dbInstance);
 
+      // 修正：設定持久性，確保重新整理後 ID 不變
+      await setPersistence(authInstance, browserLocalPersistence);
       await signInAnonymously(authInstance);
       
       onAuthStateChanged(authInstance, (u) => {
@@ -216,6 +218,7 @@ export default function TravelApp() {
     if (!user || !db) return;
 
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
+    // Sanitize appId to ensure it has no special characters like slashes that break Firestore paths
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
 
@@ -1382,7 +1385,7 @@ export default function TravelApp() {
                {notes.length === 0 && (
                 <div className="text-center py-8 text-slate-400">
                   <BookOpen size={32} className="mx-auto mb-2 opacity-20" />
-                  <p className="text-xs">暫無票券</p>
+                  <p>這裡可以存放訂位代號、機票截圖連結或旅遊日記</p>
                 </div>
               )}
             </div>
@@ -1412,8 +1415,31 @@ export default function TravelApp() {
               <div className="space-y-4">
                 <Input label="預設城市 (天氣用)" value={cityName} onChange={setCityName} placeholder="例如: Tokyo" />
                 
+                {/* 貨幣選擇 */}
+                <div className="mb-3">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">目標貨幣</label>
+                  <select 
+                    value={currencyCode} 
+                    onChange={(e) => setCurrencyCode(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  >
+                    <option value="TWD">TWD (新台幣)</option>
+                    <option value="JPY">JPY (日圓)</option>
+                    <option value="KRW">KRW (韓元)</option>
+                    <option value="USD">USD (美金)</option>
+                    <option value="EUR">EUR (歐元)</option>
+                    <option value="CNY">CNY (人民幣)</option>
+                    <option value="THB">THB (泰銖)</option>
+                  </select>
+                </div>
+
                 <Input label="OpenWeather API Key" type="password" value={weatherApiKey} onChange={setWeatherApiKey} />
                 
+                {/* 用戶 ID 顯示，方便除錯 */}
+                <div className="bg-slate-100 p-3 rounded text-xs text-slate-500 break-all">
+                  <span className="font-bold">DEBUG - User ID:</span> {user?.uid || 'Not Signed In'}
+                </div>
+
                 <div className="pt-4 border-t border-slate-100">
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Firebase Config</label>
@@ -1450,7 +1476,7 @@ export default function TravelApp() {
             </Card>
 
             <div className="text-center text-xs text-slate-400 mt-8">
-              TravelMate v6.0 • 資料儲存於您個人的 Firebase
+              TravelMate v6.1 • 資料儲存於您個人的 Firebase
             </div>
           </div>
         )}
