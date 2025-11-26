@@ -50,7 +50,7 @@ const CATEGORY_BG_CLASSES = {
   'other': 'bg-slate-500'
 };
 
-// --- 輔助組件 ---
+// --- 輔助組件 (全部移至最上方，確保讀取順序正確) ---
 
 const Card = ({ children, className = "" }) => (
   <div className={`bg-white rounded-xl shadow-sm border border-slate-100 p-4 ${className}`}>
@@ -112,6 +112,19 @@ const Select = ({ label, value, onChange, options }) => (
       ))}
     </select>
   </div>
+);
+
+const NavBtn = ({ icon, label, active, onClick, main }) => (
+  <button 
+    onClick={onClick}
+    className={`flex flex-col items-center justify-center py-2 rounded-xl transition-all
+      ${main ? '-mt-6 bg-blue-600 text-white shadow-lg shadow-blue-200 h-14 w-14 mx-auto' : ''}
+      ${active && !main ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:bg-slate-50'}
+    `}
+  >
+    {icon}
+    {!main && <span className="text-[10px] font-medium mt-1">{label}</span>}
+  </button>
 );
 
 // --- 核心應用程式 ---
@@ -496,6 +509,7 @@ export default function TravelApp() {
   const openAddModal = (type) => {
     setModalType(type);
     setEditId(null);
+    // 修正：預設 category 為 'food'，避免 undefined 顯示
     setFormData({ 
       currency: 'TWD', 
       payer: '我',
@@ -527,6 +541,7 @@ export default function TravelApp() {
         data.splitCount = parseInt(formData.splitCount || 1);
         data.currency = formData.currency || 'TWD';
         data.payer = formData.payer || '我';
+        // 確保有預設值，防止 undefined
         data.category = formData.category || 'food';
       }
 
@@ -635,33 +650,22 @@ export default function TravelApp() {
     if (totalExpenseTWD === 0) return null;
 
     let currentDeg = 0;
-    const gradientParts = Object.entries(expensesByCategory)
-      .sort(([, a], [, b]) => b - a)
-      .map(([cat, amount]) => {
-        const pct = (amount / totalExpenseTWD) * 100;
-        const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS['other'];
-        const segment = `${color} ${currentDeg}% ${currentDeg + pct}%`;
-        currentDeg += pct;
-        return { cat, pct, color };
-      });
-
-    let cumulativePct = 0;
     const conicStops = Object.entries(expensesByCategory)
       .sort(([, a], [, b]) => b - a)
       .map(([cat, amount]) => {
         const pct = (amount / totalExpenseTWD) * 100;
         const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS['other'];
-        const start = cumulativePct;
-        const end = cumulativePct + pct;
-        cumulativePct += pct;
+        const start = currentDeg;
+        const end = currentDeg + pct;
+        currentDeg += pct;
         return `${color} ${start}% ${end}%`;
       }).join(', ');
 
     return (
       <div className="flex items-center justify-between mt-4">
         {/* Chart */}
-        <div className="relative w-24 h-24 rounded-full shrink-0" style={{ background: `conic-gradient(${conicStops})` }}>
-          <div className="absolute inset-0 m-auto w-16 h-16 bg-white rounded-full flex items-center justify-center">
+        <div className="relative w-24 h-24 rounded-full shrink-0 shadow-sm" style={{ background: `conic-gradient(${conicStops})` }}>
+          <div className="absolute inset-0 m-auto w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-inner">
              <span className="text-[10px] text-slate-400 font-bold">Total</span>
           </div>
         </div>
@@ -675,8 +679,8 @@ export default function TravelApp() {
                if (pct === '0') return null;
                return (
                  <div key={cat} className="flex items-center gap-1.5 text-xs">
-                   <div className={`w-2 h-2 rounded-full ${CATEGORY_BG_CLASSES[cat] || 'bg-slate-500'}`}></div>
-                   <span className="text-slate-600">{CATEGORY_MAP[cat] || cat}</span>
+                   <div className={`w-2 h-2 rounded-full shrink-0 ${CATEGORY_BG_CLASSES[cat] || 'bg-slate-500'}`}></div>
+                   <span className="text-slate-600 truncate">{CATEGORY_MAP[cat] || cat}</span>
                    <span className="text-slate-400 ml-auto">{pct}%</span>
                  </div>
                )
@@ -787,8 +791,150 @@ export default function TravelApp() {
     );
   };
 
+  const renderPreviewNoteModal = () => {
+    if (!previewNote) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-6 backdrop-blur-sm" onClick={() => setPreviewNote(null)}>
+        <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+            <Ticket className="text-purple-500" />
+            {previewNote.title}
+          </h3>
+          <div className="bg-slate-50 p-4 rounded-lg text-slate-600 text-sm whitespace-pre-wrap mb-4 max-h-[40vh] overflow-y-auto">
+            {previewNote.content || "無內容"}
+          </div>
+          {previewNote.link && (
+            <a href={previewNote.link} target="_blank" className="block w-full text-center bg-blue-600 text-white py-2 rounded-lg mb-4 hover:bg-blue-700">
+              開啟連結/附件
+            </a>
+          )}
+          <Button variant="secondary" className="w-full" onClick={() => setPreviewNote(null)}>關閉</Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWeatherModal = () => {
+    if (!previewWeather) return null;
+    const { city, title, data, error, loading } = previewWeather;
+
+    return (
+      <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-6 backdrop-blur-sm" onClick={() => setPreviewWeather(null)}>
+        <div className="bg-white w-full max-w-xs rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-blue-500 text-white p-4">
+             <h3 className="text-lg font-bold flex items-center gap-2">
+               <MapPin size={18}/> {title}
+             </h3>
+             <p className="text-blue-100 text-xs">{city}</p>
+          </div>
+          
+          <div className="p-6 text-center">
+            {loading ? (
+              <div className="py-4 flex flex-col items-center text-slate-400">
+                <RefreshCw size={32} className="animate-spin mb-2" />
+                <p>天氣查詢中...</p>
+              </div>
+            ) : error ? (
+              <div className="py-4 text-red-500">
+                <AlertCircle size={32} className="mx-auto mb-2" />
+                <p>{error}</p>
+              </div>
+            ) : (
+              <>
+                <img 
+                  src={`https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`} 
+                  className="w-24 h-24 mx-auto -mt-4" 
+                  alt="weather icon"
+                />
+                <h2 className="text-5xl font-bold text-slate-800 mb-2">{Math.round(data.main.temp)}°</h2>
+                <p className="text-slate-500 capitalize mb-6">{data.weather[0].description}</p>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-slate-400 text-xs mb-1">體感</p>
+                    <p className="font-bold text-slate-700">{Math.round(data.main.feels_like)}°</p>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-slate-400 text-xs mb-1">濕度</p>
+                    <p className="font-bold text-slate-700">{data.main.humidity}%</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="p-4 border-t border-slate-100">
+             <Button variant="secondary" className="w-full" onClick={() => setPreviewWeather(null)}>關閉</Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // --- 主畫面渲染 (部分) ---
-  // ... (Previous parts unchanged) ...
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400">
+        <div className="animate-spin mr-2"><Settings size={20}/></div> 正在載入旅程...
+      </div>
+    );
+  }
+
+  // 若未設定資料庫，強制顯示設定頁
+  if (!db && !window.__firebase_config) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 flex flex-col items-center justify-center max-w-lg mx-auto">
+        <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="flex justify-center mb-6">
+            <div className="bg-blue-100 p-4 rounded-full">
+              <Plane size={40} className="text-blue-600" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-center mb-2 text-slate-800">歡迎使用 TravelMate</h1>
+          <p className="text-center text-slate-500 mb-6">請設定您的雲端資料庫。</p>
+          
+          {statusMsg && (
+            <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 text-sm
+              ${statusMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}
+            `}>
+              {statusMsg.type === 'error' ? <AlertCircle size={18} className="mt-0.5" /> : <CheckCircle size={18} className="mt-0.5" />}
+              <div>{statusMsg.text}</div>
+            </div>
+          )}
+
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => setConfigMode('auto')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${configMode === 'auto' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>自動貼上</button>
+            <button onClick={() => setConfigMode('manual')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${configMode === 'manual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>手動輸入</button>
+          </div>
+          
+          <div className="space-y-4">
+            {configMode === 'auto' ? (
+              <div>
+                <label className="block text-sm font-medium mb-1">Firebase Config (貼上整段代碼)</label>
+                <textarea 
+                  className="w-full h-32 text-xs font-mono bg-slate-100 border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={firebaseConfigStr}
+                  onChange={e => setFirebaseConfigStr(e.target.value)}
+                  placeholder='const firebaseConfig = { ... }'
+                />
+              </div>
+            ) : (
+              <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <Input label="API Key" value={manualConfig.apiKey} onChange={v => setManualConfig({...manualConfig, apiKey: v})} />
+                <Input label="Project ID" value={manualConfig.projectId} onChange={v => setManualConfig({...manualConfig, projectId: v})} />
+                <Input label="Auth Domain" value={manualConfig.authDomain} onChange={v => setManualConfig({...manualConfig, authDomain: v})} />
+                <Input label="App ID" value={manualConfig.appId} onChange={v => setManualConfig({...manualConfig, appId: v})} />
+              </div>
+            )}
+            
+            <Button onClick={handleSaveConfig} className="w-full">
+              儲存並開始
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-800">
