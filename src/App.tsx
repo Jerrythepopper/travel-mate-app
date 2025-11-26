@@ -51,7 +51,7 @@ const CATEGORY_BG_CLASSES = {
   'other': 'bg-slate-500'
 };
 
-// --- 輔助組件 (移至最上方，確保程式讀取得懂) ---
+// --- 輔助組件 ---
 
 const Card = ({ children, className = "" }) => (
   <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 transition-colors duration-200 ${className}`}>
@@ -131,7 +131,6 @@ const NavBtn = ({ icon, label, active, onClick, main }) => (
 // --- 核心應用程式 ---
 
 export default function TravelApp() {
-  // --- 狀態管理 ---
   const [activeTab, setActiveTab] = useState('dashboard');
   const [budgetView, setBudgetView] = useState('list');
   const [db, setDb] = useState(null);
@@ -141,17 +140,14 @@ export default function TravelApp() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
   
-  // 資料狀態
   const [itinerary, setItinerary] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [notes, setNotes] = useState([]);
   const [checklists, setChecklists] = useState([]);
   
-  // UI 狀態
   const [selectedDate, setSelectedDate] = useState(null);
   const [configMode, setConfigMode] = useState('auto');
   
-  // 設定狀態
   const [firebaseConfigStr, setFirebaseConfigStr] = useState('');
   const [weatherApiKey, setWeatherApiKey] = useState('');
   const [cityName, setCityName] = useState('Tokyo'); 
@@ -167,7 +163,6 @@ export default function TravelApp() {
     appId: ''
   });
   
-  // 表單與編輯狀態
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState(''); 
   const [editId, setEditId] = useState(null); 
@@ -177,28 +172,21 @@ export default function TravelApp() {
   const [previewNote, setPreviewNote] = useState(null);
   const [previewWeather, setPreviewWeather] = useState(null);
 
-  // 拉霸機狀態
   const [showRandomizer, setShowRandomizer] = useState(false);
   const [foodOptions, setFoodOptions] = useState([]);
   const [spinningResult, setSpinningResult] = useState(null);
   const [isSpinning, setIsSpinning] = useState(false);
 
-  // --- 初始化邏輯 ---
-
   const initFirebaseConnection = async (config) => {
     try {
       if (!config) return;
-
       const app = getApps().length === 0 ? initializeApp(config) : getApps()[0];
       const authInstance = getAuth(app);
       const dbInstance = getFirestore(app);
-      
       setAuth(authInstance);
       setDb(dbInstance);
-
       await setPersistence(authInstance, browserLocalPersistence);
       await signInAnonymously(authInstance);
-      
       onAuthStateChanged(authInstance, (u) => {
         setUser(u);
         setLoading(false);
@@ -211,8 +199,6 @@ export default function TravelApp() {
       return false;
     }
   };
-
-  // --- 初始載入 ---
 
   useEffect(() => {
     const loadSavedData = async () => {
@@ -258,15 +244,11 @@ export default function TravelApp() {
         setLoading(false);
       }
     };
-
     loadSavedData();
   }, []);
 
-  // --- 資料監聽 ---
-
   useEffect(() => {
     if (!user || !db) return;
-
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const basePath = `artifacts/${safeAppId}/public/data`; 
@@ -283,57 +265,34 @@ export default function TravelApp() {
       }
     };
 
-    const unsubItinerary = onSnapshot(
-      query(collection(db, basePath, 'itinerary')), 
-      (snap) => {
+    const unsubItinerary = onSnapshot(query(collection(db, basePath, 'itinerary')), (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         items.sort((a, b) => {
           if ((a.date || '') !== (b.date || '')) return (a.date || '').localeCompare(b.date || '');
           return (a.time || '').localeCompare(b.time || '');
         });
         setItinerary(items);
-      }, 
-      (err) => handleSnapshotError(err, 'Itinerary')
-    );
+      }, (err) => handleSnapshotError(err, 'Itinerary'));
 
-    const unsubExpenses = onSnapshot(
-      query(collection(db, basePath, 'expenses')), 
-      (snap) => {
+    const unsubExpenses = onSnapshot(query(collection(db, basePath, 'expenses')), (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         setExpenses(items);
-      }, 
-      (err) => handleSnapshotError(err, 'Expenses')
-    );
+      }, (err) => handleSnapshotError(err, 'Expenses'));
 
-    const unsubNotes = onSnapshot(
-      query(collection(db, basePath, 'notes')), 
-      (snap) => {
+    const unsubNotes = onSnapshot(query(collection(db, basePath, 'notes')), (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setNotes(items);
-      }, 
-      (err) => handleSnapshotError(err, 'Notes')
-    );
+      }, (err) => handleSnapshotError(err, 'Notes'));
 
-    const unsubChecklists = onSnapshot(
-      query(collection(db, basePath, 'checklists')), 
-      (snap) => {
+    const unsubChecklists = onSnapshot(query(collection(db, basePath, 'checklists')), (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setChecklists(items);
-      }, 
-      (err) => handleSnapshotError(err, 'Checklists')
-    );
+      }, (err) => handleSnapshotError(err, 'Checklists'));
 
-    return () => {
-      unsubItinerary();
-      unsubExpenses();
-      unsubNotes();
-      unsubChecklists();
-    };
+    return () => { unsubItinerary(); unsubExpenses(); unsubNotes(); unsubChecklists(); };
   }, [user, db]);
-
-  // --- 外部 API ---
 
   useEffect(() => {
     if (weatherApiKey && cityName) {
@@ -352,28 +311,22 @@ export default function TravelApp() {
       .catch(err => console.error(err));
   }, [weatherApiKey, cityName]);
 
-  // --- 功能函數 ---
-
   const toggleDarkMode = () => {
     const newMode = !darkMode;
     setDarkMode(newMode);
     localStorage.setItem('travel_dark_mode', String(newMode));
   };
 
-  // 拉霸機邏輯
   const handleSpin = () => {
     if (foodOptions.length === 0) return;
     setIsSpinning(true);
     setSpinningResult(null);
-    
     let count = 0;
-    const maxCount = 20; // 跳動次數
     const interval = setInterval(() => {
       const randomIndex = Math.floor(Math.random() * foodOptions.length);
       setSpinningResult(foodOptions[randomIndex]);
       count++;
-      
-      if (count >= maxCount) {
+      if (count >= 20) {
         clearInterval(interval);
         setIsSpinning(false);
       }
@@ -403,9 +356,7 @@ export default function TravelApp() {
   };
 
   const getMapsLinkForDay = (items) => {
-    const locations = items
-      .map(item => item.location)
-      .filter(loc => loc && typeof loc === 'string');
+    const locations = items.map(item => item.location).filter(loc => loc && typeof loc === 'string');
     if (locations.length < 2) return null;
     const encodedRoute = locations.map(loc => encodeURIComponent(loc)).join('/');
     return `https://www.google.com/maps/dir/${encodedRoute}`;
@@ -417,7 +368,6 @@ export default function TravelApp() {
       return;
     }
     const queryCity = targetCity || cityName; 
-    
     try {
       setPreviewWeather({ city: queryCity, title: itemTitle, loading: true });
       const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${queryCity}&units=metric&appid=${weatherApiKey}&lang=zh_tw`);
@@ -432,6 +382,21 @@ export default function TravelApp() {
     }
   };
 
+  const parseFirebaseConfig = (inputStr) => {
+    try {
+      let str = inputStr.trim();
+      if (str.includes('=')) str = str.substring(str.indexOf('=') + 1);
+      if (str.endsWith(';')) str = str.slice(0, -1);
+      const firstBrace = str.indexOf('{');
+      const lastBrace = str.lastIndexOf('}');
+      if (firstBrace !== -1) str = str.substring(firstBrace, lastBrace + 1);
+      str = str.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":').replace(/'([^']*)'/g, '"$1"').replace(/,(\s*})/g, '$1');
+      return JSON.parse(str);
+    } catch (e) {
+      throw new Error("格式解析失敗，請嘗試手動輸入模式。");
+    }
+  };
+
   const handleSaveConfig = async () => {
     setStatusMsg(null);
     let configToSave = null;
@@ -441,14 +406,7 @@ export default function TravelApp() {
         configToSave = manualConfig;
       } else {
         if (!firebaseConfigStr) throw new Error("請貼上設定");
-        let str = firebaseConfigStr.trim();
-        if (str.includes('=')) str = str.substring(str.indexOf('=') + 1);
-        if (str.endsWith(';')) str = str.slice(0, -1);
-        const firstBrace = str.indexOf('{');
-        const lastBrace = str.lastIndexOf('}');
-        if (firstBrace !== -1) str = str.substring(firstBrace, lastBrace + 1);
-        str = str.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":').replace(/'([^']*)'/g, '"$1"').replace(/,(\s*})/g, '$1');
-        configToSave = JSON.parse(str);
+        configToSave = parseFirebaseConfig(firebaseConfigStr);
       }
       if (!configToSave.apiKey) throw new Error("無效的設定");
 
@@ -461,7 +419,6 @@ export default function TravelApp() {
       setStatusMsg({ type: 'success', text: '設定已儲存！正在嘗試連線...' });
       await initFirebaseConnection(configToSave);
       setStatusMsg({ type: 'success', text: '🎉 連線成功！' });
-
     } catch (e) {
       setStatusMsg({ type: 'error', text: e.message });
     }
@@ -472,7 +429,6 @@ export default function TravelApp() {
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const basePath = `artifacts/${safeAppId}/public/data`;
-    
     const list = checklists.find(l => l.id === listId);
     if (!list) return;
     const updatedItems = list.items.map(item => {
@@ -541,6 +497,7 @@ export default function TravelApp() {
       if (modalType === 'expense') {
         data.amount = parseFloat(formData.amount || 0);
         data.splitCount = parseInt(formData.splitCount || 1);
+        data.category = formData.category || 'food';
       }
       if (editId) {
         await updateDoc(doc(db, basePath, coll, editId), data);
@@ -562,8 +519,6 @@ export default function TravelApp() {
     const basePath = `artifacts/${safeAppId}/public/data`;
     await deleteDoc(doc(db, basePath, collectionName, id));
   };
-
-  // --- 計算邏輯 ---
 
   const uniqueItineraryDates = useMemo(() => {
     const dates = [...new Set(itinerary.map(item => item.date || ''))].filter(d => d).sort();
@@ -623,8 +578,6 @@ export default function TravelApp() {
     return [...names];
   }, [expenses]);
 
-  // --- 渲染部分 ---
-
   const renderPieChart = () => {
     if (totalExpenseTWD === 0) return null;
     let currentDeg = 0;
@@ -663,61 +616,29 @@ export default function TravelApp() {
     );
   };
 
-  // 命運拉霸機 Modal
   const renderRandomizerModal = () => {
     if (!showRandomizer) return null;
     return (
       <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-6 backdrop-blur-sm" onClick={() => setShowRandomizer(false)}>
         <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl transform transition-all" onClick={e => e.stopPropagation()}>
           <div className="text-center mb-6">
-            <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center justify-center gap-2">
-              <Dices className="text-orange-500" /> 命運美食
-            </h3>
+            <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center justify-center gap-2"><Dices className="text-orange-500" /> 命運美食</h3>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">今天吃什麼？交給命運決定！</p>
           </div>
-
-          {/* 拉霸顯示區 */}
           <div className="bg-slate-100 dark:bg-slate-900 h-24 rounded-xl flex items-center justify-center mb-6 border-4 border-slate-200 dark:border-slate-700 relative overflow-hidden">
-             {isSpinning ? (
-               <div className="text-3xl font-bold text-blue-500 animate-pulse">{spinningResult}</div>
-             ) : (
-               <div className="text-3xl font-bold text-slate-700 dark:text-white">
-                 {spinningResult || "準備開始"}
-               </div>
-             )}
+             {isSpinning ? <div className="text-3xl font-bold text-blue-500 animate-pulse">{spinningResult}</div> : <div className="text-3xl font-bold text-slate-700 dark:text-white">{spinningResult || "準備開始"}</div>}
           </div>
-
-          <Button onClick={handleSpin} disabled={isSpinning} variant="action" className="w-full text-lg h-12 mb-6 shadow-lg shadow-orange-200 dark:shadow-none">
-            {isSpinning ? '抽選中...' : '🎰 開始拉霸！'}
-          </Button>
-
-          {/* 選項編輯區 */}
+          <Button onClick={handleSpin} disabled={isSpinning} variant="action" className="w-full text-lg h-12 mb-6 shadow-lg shadow-orange-200 dark:shadow-none">{isSpinning ? '抽選中...' : '🎰 開始拉霸！'}</Button>
           <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
-            <div className="flex justify-between items-center mb-2">
-              <div className="text-xs font-bold text-slate-400 uppercase">候選名單</div>
-              <button onClick={handleClearFoodOptions} className="text-xs text-red-400 hover:text-red-500 flex items-center gap-1">
-                <RotateCcw size={10}/> 清空
-              </button>
-            </div>
+            <div className="flex justify-between items-center mb-2"><div className="text-xs font-bold text-slate-400 uppercase">候選名單</div><button onClick={handleClearFoodOptions} className="text-xs text-red-400 hover:text-red-500 flex items-center gap-1"><RotateCcw size={10}/> 清空</button></div>
             <div className="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto">
               {foodOptions.map((food, idx) => (
-                <span key={idx} className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full text-xs flex items-center gap-1">
-                  {food}
-                  <button onClick={() => handleDeleteFoodOption(idx)} className="hover:text-red-500"><X size={12}/></button>
-                </span>
+                <span key={idx} className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full text-xs flex items-center gap-1">{food}<button onClick={() => handleDeleteFoodOption(idx)} className="hover:text-red-500"><X size={12}/></button></span>
               ))}
             </div>
-            <input 
-              type="text" 
-              placeholder="+ 新增選項 (按 Enter)" 
-              className="w-full text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:text-white"
-              onKeyDown={handleAddFoodOption}
-            />
+            <input type="text" placeholder="+ 新增選項 (按 Enter)" className="w-full text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:text-white" onKeyDown={handleAddFoodOption} />
           </div>
-
-          <div className="mt-4 text-center">
-            <button onClick={() => setShowRandomizer(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm underline">關閉</button>
-          </div>
+          <div className="mt-4 text-center"><button onClick={() => setShowRandomizer(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm underline">關閉</button></div>
         </div>
       </div>
     );
@@ -843,7 +764,6 @@ export default function TravelApp() {
              </h3>
              <p className="text-blue-100 text-xs">{city}</p>
           </div>
-          
           <div className="p-6 text-center">
             {loading ? (
               <div className="py-4 flex flex-col items-center text-slate-400">
@@ -857,14 +777,9 @@ export default function TravelApp() {
               </div>
             ) : (
               <>
-                <img 
-                  src={`https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`} 
-                  className="w-24 h-24 mx-auto -mt-4" 
-                  alt="weather icon"
-                />
+                <img src={`https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`} className="w-24 h-24 mx-auto -mt-4" alt="weather icon" />
                 <h2 className="text-5xl font-bold text-slate-800 mb-2">{Math.round(data.main.temp)}°</h2>
                 <p className="text-slate-500 capitalize mb-6">{data.weather[0].description}</p>
-                
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="bg-slate-50 p-2 rounded-lg">
                     <p className="text-slate-400 text-xs mb-1">體感</p>
@@ -885,8 +800,6 @@ export default function TravelApp() {
       </div>
     );
   };
-
-  // --- Main Return ---
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-400"><div className="animate-spin mr-2"><Settings size={20}/></div></div>;
 
@@ -911,122 +824,94 @@ export default function TravelApp() {
   return (
     <div className={darkMode ? "dark" : ""}>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 font-sans text-slate-800 dark:text-slate-100 transition-colors duration-300">
-        {/* 頂部導航 */}
         <div className="bg-blue-600 dark:bg-slate-900 text-white p-4 sticky top-0 z-40 shadow-md transition-colors">
           <div className="flex justify-between items-center max-w-md mx-auto">
-            <div className="flex items-center gap-2">
-              <Plane size={20} />
-              <h1 className="font-bold text-lg">TravelMate</h1>
-            </div>
-            <div className="flex gap-3 items-center">
-               <div className="text-xs bg-emerald-600/90 px-3 py-1 rounded-full flex items-center gap-1 shadow-sm border border-emerald-400/50 font-medium text-white">
-                 <Users size={12}/> 共享模式
-               </div>
-            </div>
+            <div className="flex items-center gap-2"><Plane size={20} /><h1 className="font-bold text-lg">TravelMate</h1></div>
+            <div className="flex gap-3 items-center"><div className="text-xs bg-emerald-600/90 px-3 py-1 rounded-full flex items-center gap-1 shadow-sm border border-emerald-400/50 font-medium text-white"><Users size={12}/> 共享模式</div></div>
           </div>
         </div>
 
         <div className="max-w-md mx-auto p-4 space-y-6">
           {activeTab === 'dashboard' && (
             <div className="space-y-4 animate-in fade-in">
-              {/* Weather Card */}
               <Card className="bg-gradient-to-br from-blue-400 to-indigo-500 dark:from-blue-900 dark:to-indigo-950 text-white border-none overflow-hidden relative">
                 <div className="relative z-10">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2"><MapPin size={18} /><span className="font-bold text-lg">{cityName}</span></div>
                     {weatherData && (<div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm"><img src={`https://openweathermap.org/img/wn/${weatherData.weather[0].icon}.png`} className="w-8 h-8" alt="weather"/></div>)}
                   </div>
-                  {weatherData ? (
-                    <>
-                      <div className="flex items-end gap-2 mb-2"><h2 className="text-5xl font-bold">{Math.round(weatherData.main.temp)}°</h2><span className="text-xl mb-1 opacity-90">{weatherData.weather[0].description}</span></div>
-                      <div className="flex gap-4 text-sm opacity-90"><div className="flex items-center gap-1"><Droplets size={14} /> {weatherData.main.humidity}%</div><div className="flex items-center gap-1"><Wind size={14} /> {weatherData.wind.speed} m/s</div></div>
-                    </>
-                  ) : (<div className="py-4 text-sm opacity-70">載入天氣中...</div>)}
+                  {weatherData ? (<><div className="flex items-end gap-2 mb-2"><h2 className="text-5xl font-bold">{Math.round(weatherData.main.temp)}°</h2><span className="text-xl mb-1 opacity-90">{weatherData.weather[0].description}</span></div><div className="flex gap-4 text-sm opacity-90"><div className="flex items-center gap-1"><Droplets size={14} /> {weatherData.main.humidity}%</div><div className="flex items-center gap-1"><Wind size={14} /> {weatherData.wind.speed} m/s</div></div></>) : (<div className="py-4 text-sm opacity-70">載入天氣中...</div>)}
                 </div>
                 <CloudSun size={120} className="absolute -right-6 -bottom-6 text-white/10" />
               </Card>
-              
-              {/* Random Food Button */}
-              <Button onClick={() => setShowRandomizer(true)} variant="action" className="w-full shadow-lg shadow-orange-200 dark:shadow-none h-12 text-lg">
-                 <Dices className="mr-2" /> 幫我選！今天要吃什麼？
-              </Button>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="flex flex-col items-center justify-center py-6"><Calendar className="text-blue-500 mb-2" size={28} /><span className="text-2xl font-bold">{itinerary.length}</span><span className="text-xs text-slate-400 uppercase">行程活動</span></Card>
-                <Card className="flex flex-col items-center justify-center py-6"><Wallet className="text-emerald-500 mb-2" size={28} /><span className="text-2xl font-bold"><span className="text-sm align-top">$</span>{Math.round(totalExpenseTWD).toLocaleString()}</span><span className="text-xs text-slate-400 uppercase">總支出 (約合 TWD)</span></Card>
-              </div>
+              <Button onClick={() => setShowRandomizer(true)} variant="action" className="w-full shadow-lg shadow-orange-200 dark:shadow-none h-12 text-lg"><Dices className="mr-2" /> 幫我選！今天要吃什麼？</Button>
+              <div className="grid grid-cols-2 gap-4"><Card className="flex flex-col items-center justify-center py-6"><Calendar className="text-blue-500 mb-2" size={28} /><span className="text-2xl font-bold">{itinerary.length}</span><span className="text-xs text-slate-400 uppercase">行程活動</span></Card><Card className="flex flex-col items-center justify-center py-6"><Wallet className="text-emerald-500 mb-2" size={28} /><span className="text-2xl font-bold"><span className="text-sm align-top">$</span>{Math.round(totalExpenseTWD).toLocaleString()}</span><span className="text-xs text-slate-400 uppercase">總支出 (約合 TWD)</span></Card></div>
             </div>
           )}
 
           {activeTab === 'itinerary' && (
              <div className="space-y-6 animate-in fade-in">
                <div className="flex justify-between items-center"><h2 className="text-xl font-bold">行程規劃</h2><Button onClick={() => openAddModal('itinerary')} className="h-10 w-10 !p-0 rounded-full"><Plus size={24} /></Button></div>
-               <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">
-                {uniqueItineraryDates.map(date => (
-                  <button key={date} onClick={() => setSelectedDate(date)} className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors whitespace-nowrap ${selectedDate === date ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}`}>{date}</button>
-                ))}
-              </div>
-              <div className="space-y-3">
-                  <div className="flex justify-between items-center"><h3 className="font-bold text-slate-700 dark:text-slate-300">{selectedDate || '請選擇日期'}</h3>{filteredItineraryByDate.length >= 2 && getMapsLinkForDay(filteredItineraryByDate) && (<Button href={getMapsLinkForDay(filteredItineraryByDate)} target="_blank" variant="action" className="!py-1 !px-3 text-xs h-8"><Navigation size={14} /> 地圖路線</Button>)}</div>
-                  {filteredItineraryByDate.map((item) => (
-                     <div key={item.id} onClick={() => openEditModal(item, 'itinerary')} className="relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 group cursor-pointer"><div className="absolute -left-[21px] top-6 w-3 h-3 rounded-full border-2 border-slate-50 dark:border-slate-950 bg-blue-500"></div><div className="flex justify-between items-start"><div className="flex-1"><div className="flex items-center gap-2 mb-1"><span className="font-mono font-bold text-slate-600 dark:text-slate-300 text-lg">{item.time}</span><span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300`}>{item.type}</span></div><h4 className="font-bold text-slate-800 dark:text-white text-lg">{item.title}</h4><div className="flex flex-wrap gap-2 mt-1">{item.location && (<p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1"><MapPin size={14} /> {item.location}</p>)}<div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}><button onClick={(e) => { e.stopPropagation(); checkItemWeather(item.weatherCity, item.title); }} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:bg-orange-100 dark:text-orange-400 dark:hover:bg-orange-900 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded border border-orange-100 dark:border-orange-900 transition-colors"><CloudSun size={12} /> 天氣</button></div></div></div><button onClick={(e) => handleDelete('itinerary', item.id, e)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 size={16} /></button></div></div>
-                  ))}
-              </div>
+               <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 no-scrollbar">{uniqueItineraryDates.map(date => (<button key={date} onClick={() => setSelectedDate(date)} className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-colors whitespace-nowrap ${selectedDate === date ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}`}>{date}</button>))}</div>
+               <div className="space-y-3"><div className="flex justify-between items-center"><h3 className="font-bold text-slate-700 dark:text-slate-300">{selectedDate || '請選擇日期'}</h3>{filteredItineraryByDate.length >= 2 && getMapsLinkForDay(filteredItineraryByDate) && (<Button href={getMapsLinkForDay(filteredItineraryByDate)} target="_blank" variant="action" className="!py-1 !px-3 text-xs h-8"><Navigation size={14} /> 地圖路線</Button>)}</div>{filteredItineraryByDate.map((item) => (<div key={item.id} onClick={() => openEditModal(item, 'itinerary')} className="relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 group cursor-pointer"><div className="absolute -left-[21px] top-6 w-3 h-3 rounded-full border-2 border-slate-50 dark:border-slate-950 bg-blue-500"></div><div className="flex justify-between items-start"><div className="flex-1"><div className="flex items-center gap-2 mb-1"><span className="font-mono font-bold text-slate-600 dark:text-slate-300 text-lg">{item.time}</span><span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300`}>{item.type}</span></div><h4 className="font-bold text-slate-800 dark:text-white text-lg">{item.title}</h4><div className="flex flex-wrap gap-2 mt-1">{item.location && (<p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1"><MapPin size={14} /> {item.location}</p>)}<div className="flex items-center gap-2 mt-1" onClick={(e) => e.stopPropagation()}><button onClick={(e) => { e.stopPropagation(); checkItemWeather(item.weatherCity, item.title); }} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:bg-orange-100 dark:text-orange-400 dark:hover:bg-orange-900 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded border border-orange-100 dark:border-orange-900 transition-colors"><CloudSun size={12} /> 天氣</button></div></div></div><button onClick={(e) => handleDelete('itinerary', item.id, e)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 size={16} /></button></div></div>))}</div>
              </div>
           )}
 
           {activeTab === 'budget' && budgetView === 'list' && (
             <div className="space-y-4 animate-in fade-in">
-               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold">支出記帳</h2>
-                <div className="flex gap-2">
-                  <Button variant="secondary" className="h-10 !px-3 text-sm" onClick={() => setBudgetView('settlement')}><PieChart size={18} className="mr-1" /> 結算</Button>
-                  <Button onClick={() => openAddModal('expense')} className="h-10 w-10 !p-0 rounded-full"><Plus size={24} /></Button>
-                </div>
-              </div>
-              {/* White Card for Total Expense */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 transition-colors">
-                <div>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">總花費 (估計台幣)</p>
-                  <h3 className="text-4xl font-bold text-slate-800 dark:text-white mt-1"><span className="text-xl align-top mr-1">$</span>{Math.round(totalExpenseTWD).toLocaleString()}</h3>
-                </div>
-                {renderPieChart()}
-              </div>
-              <div className="space-y-2">
-                {expenses.map(item => (
-                  <div key={item.id} onClick={() => openEditModal(item, 'expense')} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white ${CATEGORY_BG_CLASSES[item.category] || 'bg-slate-500'}`}><DollarSign size={20} /></div>
-                      <div><h4 className="font-medium text-sm text-slate-800 dark:text-white">{item.title}</h4><p className="text-xs text-slate-400 flex items-center gap-2">{item.date} • {item.payer || '我'}付</p></div>
-                    </div>
-                    <div className="text-right"><span className="font-bold text-slate-800 dark:text-white block">{item.currency} {item.amount.toLocaleString()}</span>{item.currency !== 'TWD' && exchangeRate && (<span className="text-[10px] text-slate-400 block">≈ {Math.round(calculateTwdAmount(item.amount, item.currency)).toLocaleString()}</span>)}</div>
-                  </div>
-                ))}
-              </div>
+               <div className="flex justify-between items-center"><h2 className="text-xl font-bold">支出記帳</h2><div className="flex gap-2"><Button variant="secondary" className="h-10 !px-3 text-sm" onClick={() => setBudgetView('settlement')}><PieChart size={18} className="mr-1" /> 結算</Button><Button onClick={() => openAddModal('expense')} className="h-10 w-10 !p-0 rounded-full"><Plus size={24} /></Button></div></div>
+               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 transition-colors"><div><p className="text-slate-400 text-xs font-bold uppercase tracking-wider">總花費 (估計台幣)</p><h3 className="text-4xl font-bold text-slate-800 dark:text-white mt-1"><span className="text-xl align-top mr-1">$</span>{Math.round(totalExpenseTWD).toLocaleString()}</h3></div>{renderPieChart()}</div>
+               <div className="space-y-2">{expenses.map(item => (<div key={item.id} onClick={() => openEditModal(item, 'expense')} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"><div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white ${CATEGORY_BG_CLASSES[item.category] || 'bg-slate-500'}`}><DollarSign size={20} /></div><div><h4 className="font-medium text-sm text-slate-800 dark:text-white">{item.title}</h4><p className="text-xs text-slate-400 flex items-center gap-2">{item.date} • {item.payer || '我'}付</p></div></div><div className="text-right"><span className="font-bold text-slate-800 dark:text-white block">{item.currency} {item.amount.toLocaleString()}</span>{item.currency !== 'TWD' && exchangeRate && (<span className="text-[10px] text-slate-400 block">≈ {Math.round(calculateTwdAmount(item.amount, item.currency)).toLocaleString()}</span>)}</div></div>))}</div>
             </div>
           )}
 
-          {/* Settings with Dark Mode Toggle */}
           {activeTab === 'settings' && (
              <div className="space-y-6 animate-in fade-in">
-               <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold">App 設定</h2>
-                  <div className="flex items-center gap-2">
-                     <span className="text-xs text-slate-400">深色模式</span>
-                     <button onClick={toggleDarkMode} className={`w-12 h-6 rounded-full p-1 transition-colors ${darkMode ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${darkMode ? 'translate-x-6' : ''}`}></div>
-                     </button>
+               <div className="flex justify-between items-center"><h2 className="text-xl font-bold">App 設定</h2><div className="flex items-center gap-2"><span className="text-xs text-slate-400">深色模式</span><button onClick={toggleDarkMode} className={`w-12 h-6 rounded-full p-1 transition-colors ${darkMode ? 'bg-blue-600' : 'bg-slate-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${darkMode ? 'translate-x-6' : ''}`}></div></button></div></div>
+               <Card>
+                  <h3 className="font-bold mb-4 flex items-center gap-2 text-slate-700 dark:text-slate-200"><Cloud size={18} /> 連線設定</h3>
+                  <div className="space-y-4">
+                    <Input label="預設城市" value={cityName} onChange={setCityName} />
+                    <Input label="Weather API Key" type="password" value={weatherApiKey} onChange={setWeatherApiKey} />
+                    
+                    {/* 這裡就是之前消失的 Firebase Config 輸入框，我保證它回來了！ */}
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Firebase Config</label>
+                        <div className="flex gap-2 text-[10px]">
+                          <button onClick={() => setConfigMode('auto')} className={`px-2 py-1 rounded ${configMode === 'auto' ? 'bg-blue-100 text-blue-600 font-bold' : 'text-slate-400'}`}>自動</button>
+                          <button onClick={() => setConfigMode('manual')} className={`px-2 py-1 rounded ${configMode === 'manual' ? 'bg-blue-100 text-blue-600 font-bold' : 'text-slate-400'}`}>手動</button>
+                        </div>
+                      </div>
+
+                      {configMode === 'auto' ? (
+                         <>
+                          <textarea 
+                            className="w-full h-24 text-xs font-mono bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none dark:text-white"
+                            value={firebaseConfigStr}
+                            onChange={e => setFirebaseConfigStr(e.target.value)}
+                            placeholder='請貼上整段 const firebaseConfig = { ... }'
+                          />
+                          <p className="text-xs text-slate-400 mt-1">請直接貼上整段程式碼。</p>
+                         </>
+                      ) : (
+                        <div className="space-y-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                           <Input label="API Key" value={manualConfig.apiKey} onChange={v => setManualConfig({...manualConfig, apiKey: v})} />
+                           <Input label="Project ID" value={manualConfig.projectId} onChange={v => setManualConfig({...manualConfig, projectId: v})} />
+                           <Input label="Auth Domain" value={manualConfig.authDomain} onChange={v => setManualConfig({...manualConfig, authDomain: v})} />
+                           <Input label="App ID" value={manualConfig.appId} onChange={v => setManualConfig({...manualConfig, appId: v})} />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <Button onClick={handleSaveConfig} className="w-full mt-4">儲存設定</Button>
                   </div>
-               </div>
-               {/* ... (Settings content) ... */}
-               <Card><h3 className="font-bold mb-4 flex items-center gap-2 text-slate-700 dark:text-slate-200"><Cloud size={18} /> 連線設定</h3><div className="space-y-4"><Input label="預設城市" value={cityName} onChange={setCityName} /><Input label="Weather API Key" type="password" value={weatherApiKey} onChange={setWeatherApiKey} /><Button onClick={handleSaveConfig} className="w-full mt-4">儲存設定</Button></div></Card>
-               <div className="text-center text-xs text-slate-400 mt-8">TravelMate v7.0 • 您的個人旅遊助手</div>
+               </Card>
+               <div className="text-center text-xs text-slate-400 mt-8">TravelMate v7.1 • 您的個人旅遊助手</div>
              </div>
           )}
 
-          {/* Other tabs omitted for brevity but logic persists... */}
           {activeTab === 'budget' && budgetView === 'settlement' && (
-             /* Reuse settlement view logic but add dark mode classes */
              <div className="space-y-6 animate-in fade-in">
                <div className="flex items-center gap-2 mb-2"><button onClick={() => setBudgetView('list')} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><ArrowLeftRight size={20} /></button><h2 className="text-xl font-bold">分帳結算</h2></div>
                <Card className="bg-indigo-600 text-white"><div className="flex justify-between items-end"><div><p className="text-indigo-200 text-xs">總旅費 (TWD)</p><h3 className="text-3xl font-bold">${Math.round(totalExpenseTWD).toLocaleString()}</h3></div><div className="text-right"><p className="text-indigo-200 text-xs">平均每人</p><h3 className="text-2xl font-bold">${Math.round(settlementData.average).toLocaleString()}</h3></div></div></Card>
@@ -1041,7 +926,6 @@ export default function TravelApp() {
                <div className="grid grid-cols-1 gap-4">{notes.map(note => (<Card key={note.id} className="relative group"><div className="flex items-start gap-3"><Ticket className="text-purple-500 shrink-0 mt-1" size={20} /><div className="flex-1 overflow-hidden" onClick={() => openEditModal(note, 'note')}><h3 className="font-bold text-lg mb-1 cursor-pointer hover:text-blue-600 dark:text-white dark:hover:text-blue-400">{note.title}</h3><p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap cursor-pointer">{note.content}</p></div><button onClick={(e) => handleDelete('notes', note.id, e)} className="text-slate-300 hover:text-red-500"><Trash2 size={16} /></button></div></Card>))}</div>
              </div>
           )}
-
         </div>
 
         {/* 底部導航欄 */}
