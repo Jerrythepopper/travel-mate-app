@@ -5,13 +5,13 @@ import {
   Train, Plane, Coffee, Camera, Ticket, Wallet,
   ArrowRight, Thermometer, Droplets, History, Eye, EyeOff,
   AlertCircle, CheckCircle, RefreshCw, Edit2, Users, Link as LinkIcon, CloudSun,
-  Wind, Calculator, PieChart, ArrowLeftRight, Navigation
+  Wind, Calculator, PieChart, ArrowLeftRight, Navigation, CheckSquare, X
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, deleteDoc, doc, updateDoc,
-  enableIndexedDbPersistence
+  enableIndexedDbPersistence, setDoc
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
@@ -100,6 +100,7 @@ export default function TravelApp() {
   const [itinerary, setItinerary] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [checklists, setChecklists] = useState([]); // 新增：檢查清單
   
   // UI 狀態
   const [selectedDate, setSelectedDate] = useState(null); // 行程當前選中的日期
@@ -133,6 +134,8 @@ export default function TravelApp() {
 
   // 臨時狀態：用於顯示票券
   const [previewNote, setPreviewNote] = useState(null);
+  // 臨時狀態：用於顯示天氣 Modal
+  const [previewWeather, setPreviewWeather] = useState(null);
 
   // --- 初始化邏輯 ---
 
@@ -213,7 +216,6 @@ export default function TravelApp() {
     if (!user || !db) return;
 
     const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
-    // Sanitize appId to ensure it has no special characters like slashes that break Firestore paths
     const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
 
@@ -238,10 +240,17 @@ export default function TravelApp() {
       setNotes(items);
     }, (err) => console.error("Notes Error:", err));
 
+    const unsubChecklists = onSnapshot(query(collection(db, basePath, 'checklists')), (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // 不特別排序，依照建立時間或預設
+      setChecklists(items);
+    }, (err) => console.error("Checklists Error:", err));
+
     return () => {
       unsubItinerary();
       unsubExpenses();
       unsubNotes();
+      unsubChecklists();
     };
   }, [user, db]);
 
@@ -293,20 +302,24 @@ export default function TravelApp() {
     const queryCity = targetCity || cityName; 
     
     try {
-      setStatusMsg({ type: 'success', text: `正在查詢 ${queryCity} 的天氣...` });
+      // 顯示載入中
+      setPreviewWeather({ city: queryCity, title: itemTitle, loading: true });
+      
       const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${queryCity}&units=metric&appid=${weatherApiKey}&lang=zh_tw`);
       const data = await res.json();
       
       if (res.ok) {
-        alert(`🌤️ ${itemTitle} (${queryCity}) 天氣：\n\n狀況：${data.weather?.[0]?.description}\n溫度：${Math.round(data.main.temp)}°C\n體感：${Math.round(data.main.feels_like)}°C\n濕度：${data.main.humidity}%`);
-        setStatusMsg(null);
+        setPreviewWeather({
+          city: queryCity,
+          title: itemTitle,
+          data: data,
+          loading: false
+        });
       } else {
-        alert(`查詢失敗：${data.message}`);
-        setStatusMsg(null);
+        setPreviewWeather({ city: queryCity, title: itemTitle, error: data.message, loading: false });
       }
     } catch (e) {
-      alert("天氣查詢發生錯誤");
-      setStatusMsg(null);
+      setPreviewWeather({ city: queryCity, title: itemTitle, error: "連線錯誤", loading: false });
     }
   };
 
@@ -360,11 +373,80 @@ export default function TravelApp() {
       
       if (success) {
         setStatusMsg({ type: 'success', text: '🎉 連線成功！' });
+        // 這裡可以初始化 checklist 範本
+        initDefaultChecklists(configToSave);
       }
 
     } catch (e) {
       setStatusMsg({ type: 'error', text: e.message });
     }
+  };
+
+  // 初始化 Checklists (如果沒有的話)
+  const initDefaultChecklists = async (config) => {
+    // 等待 user 狀態更新可能有點慢，這裡只做簡單檢查
+    // 實際應用通常在後端或更嚴謹的邏輯做
+  };
+
+  const handleToggleCheckItem = async (listId, itemId, currentStatus) => {
+    if (!user || !db) return;
+    const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
+    const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    
+    // 找到該 list
+    const list = checklists.find(l => l.id === listId);
+    if (!list) return;
+
+    const updatedItems = list.items.map(item => {
+      if (item.id === itemId) return { ...item, checked: !currentStatus };
+      return item;
+    });
+
+    await updateDoc(doc(db, basePath, 'checklists', listId), { items: updatedItems });
+  };
+
+  const handleAddChecklist = async () => {
+    if (!user || !db) return;
+    const catName = prompt("請輸入新分類名稱（例如：電器用品）");
+    if (!catName) return;
+
+    const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
+    const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+
+    await addDoc(collection(db, basePath, 'checklists'), {
+      category: catName,
+      items: []
+    });
+  };
+
+  const handleAddCheckItem = async (listId, e) => {
+    if (e.key === 'Enter' && e.target.value.trim()) {
+      const newItemName = e.target.value.trim();
+      e.target.value = ''; // 清空輸入框
+
+      if (!user || !db) return;
+      const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
+      const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+
+      const list = checklists.find(l => l.id === listId);
+      if (!list) return;
+
+      const newItem = { id: Date.now().toString(), name: newItemName, checked: false };
+      const updatedItems = [...(list.items || []), newItem];
+
+      await updateDoc(doc(db, basePath, 'checklists', listId), { items: updatedItems });
+    }
+  };
+
+  const handleDeleteChecklist = async (listId) => {
+    if (!confirm("確定要刪除這個分類清單嗎？")) return;
+    const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : DEFAULT_APP_ID;
+    const safeAppId = appId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const basePath = `artifacts/${safeAppId}/users/${user.uid}`;
+    await deleteDoc(doc(db, basePath, 'checklists', listId));
   };
 
   const openAddModal = (type) => {
@@ -522,8 +604,8 @@ export default function TravelApp() {
     const isEdit = !!editId;
 
     return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-sm">
-        <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+        <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
           <h2 className="text-xl font-bold mb-4 text-slate-800 flex items-center gap-2">
             {isEdit ? <Edit2 size={20} className="text-blue-500"/> : <Plus size={20} className="text-blue-500"/>}
             {isEdit ? '編輯' : '新增'} 
@@ -694,6 +776,62 @@ export default function TravelApp() {
             </a>
           )}
           <Button variant="secondary" className="w-full" onClick={() => setPreviewNote(null)}>關閉</Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWeatherModal = () => {
+    if (!previewWeather) return null;
+    const { city, title, data, error, loading } = previewWeather;
+
+    return (
+      <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-6 backdrop-blur-sm" onClick={() => setPreviewWeather(null)}>
+        <div className="bg-white w-full max-w-xs rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-blue-500 text-white p-4">
+             <h3 className="text-lg font-bold flex items-center gap-2">
+               <MapPin size={18}/> {title}
+             </h3>
+             <p className="text-blue-100 text-xs">{city}</p>
+          </div>
+          
+          <div className="p-6 text-center">
+            {loading ? (
+              <div className="py-4 flex flex-col items-center text-slate-400">
+                <RefreshCw size={32} className="animate-spin mb-2" />
+                <p>天氣查詢中...</p>
+              </div>
+            ) : error ? (
+              <div className="py-4 text-red-500">
+                <AlertCircle size={32} className="mx-auto mb-2" />
+                <p>{error}</p>
+              </div>
+            ) : (
+              <>
+                <img 
+                  src={`https://openweathermap.org/img/wn/${data.weather[0].icon}@2x.png`} 
+                  className="w-24 h-24 mx-auto -mt-4" 
+                  alt="weather icon"
+                />
+                <h2 className="text-5xl font-bold text-slate-800 mb-2">{Math.round(data.main.temp)}°</h2>
+                <p className="text-slate-500 capitalize mb-6">{data.weather[0].description}</p>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-slate-400 text-xs mb-1">體感</p>
+                    <p className="font-bold text-slate-700">{Math.round(data.main.feels_like)}°</p>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-lg">
+                    <p className="text-slate-400 text-xs mb-1">濕度</p>
+                    <p className="font-bold text-slate-700">{data.main.humidity}%</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="p-4 border-t border-slate-100">
+             <Button variant="secondary" className="w-full" onClick={() => setPreviewWeather(null)}>關閉</Button>
+          </div>
         </div>
       </div>
     );
@@ -1152,17 +1290,76 @@ export default function TravelApp() {
           </div>
         )}
 
-        {/* --- 筆記與票券 (Docs) --- */}
+        {/* --- 筆記與清單 (Docs & Checklists) --- */}
         {activeTab === 'docs' && (
-          <div className="space-y-4 animate-in fade-in">
-             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">票券與筆記</h2>
-              <Button onClick={() => openAddModal('note')} className="h-10 w-10 !p-0 rounded-full">
-                <Plus size={24} />
-              </Button>
-            </div>
+          <div className="space-y-6 animate-in fade-in">
+             {/* 分頁切換 (Checklist vs Notes) */}
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-xl font-bold">清單與票券</h2>
+               <div className="flex gap-2">
+                 <Button onClick={() => handleAddChecklist()} className="h-9 px-3 text-xs bg-emerald-600 hover:bg-emerald-700">
+                   <Plus size={16} className="mr-1"/> 新清單
+                 </Button>
+                 <Button onClick={() => openAddModal('note')} className="h-9 w-9 !p-0 rounded-full">
+                   <Plus size={20} />
+                 </Button>
+               </div>
+             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+             {/* 必帶清單區塊 */}
+             {checklists.length > 0 ? (
+               <div className="space-y-4">
+                 {checklists.map(list => (
+                   <Card key={list.id} className="relative group">
+                     <div className="flex justify-between items-center mb-3">
+                       <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                         <CheckSquare size={18} className="text-emerald-500"/>
+                         {list.category}
+                       </h3>
+                       <button onClick={() => handleDeleteChecklist(list.id)} className="text-slate-300 hover:text-red-500">
+                         <Trash2 size={16} />
+                       </button>
+                     </div>
+                     
+                     {/* 清單項目 */}
+                     <div className="space-y-2 mb-3">
+                       {list.items && list.items.map(item => (
+                         <div key={item.id} className="flex items-center gap-2">
+                           <input 
+                             type="checkbox" 
+                             checked={item.checked}
+                             onChange={() => handleToggleCheckItem(list.id, item.id, item.checked)}
+                             className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                           />
+                           <span className={`text-sm ${item.checked ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                             {item.name}
+                           </span>
+                         </div>
+                       ))}
+                     </div>
+                     
+                     {/* 新增項目輸入框 */}
+                     <input 
+                       type="text" 
+                       placeholder="+ 新增項目 (按 Enter)" 
+                       className="w-full text-sm bg-slate-50 border-none rounded px-2 py-1 focus:ring-1 focus:ring-emerald-500"
+                       onKeyDown={(e) => handleAddCheckItem(list.id, e)}
+                     />
+                   </Card>
+                 ))}
+               </div>
+             ) : (
+               <div className="text-center py-4 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
+                 <CheckSquare size={32} className="mx-auto mb-2 opacity-20" />
+                 <p className="text-xs">點擊「新清單」建立行李檢查表</p>
+               </div>
+             )}
+
+             <hr className="border-slate-200 my-4"/>
+
+             {/* 票券筆記區塊 */}
+             <h3 className="font-bold text-slate-500 text-sm uppercase tracking-wider mb-2">票券與筆記</h3>
+             <div className="grid grid-cols-1 gap-4">
               {notes.map(note => (
                 <Card key={note.id} className="relative group">
                   <div className="flex items-start gap-3">
@@ -1183,9 +1380,9 @@ export default function TravelApp() {
                 </Card>
               ))}
                {notes.length === 0 && (
-                <div className="text-center py-12 text-slate-400">
-                  <BookOpen size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>這裡可以存放訂位代號、機票截圖連結或旅遊日記</p>
+                <div className="text-center py-8 text-slate-400">
+                  <BookOpen size={32} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-xs">暫無票券</p>
                 </div>
               )}
             </div>
@@ -1202,7 +1399,7 @@ export default function TravelApp() {
                 <Cloud size={18} /> 連線設定
               </h3>
 
-               {/* 狀態訊息顯示區 (取代 Alert) */}
+               {/* 狀態訊息顯示區 */}
               {statusMsg && (
                 <div className={`mb-4 p-3 rounded-lg flex items-start gap-3 text-sm
                   ${statusMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}
@@ -1253,7 +1450,7 @@ export default function TravelApp() {
             </Card>
 
             <div className="text-center text-xs text-slate-400 mt-8">
-              TravelMate v5.0 • 資料儲存於您個人的 Firebase
+              TravelMate v6.0 • 資料儲存於您個人的 Firebase
             </div>
           </div>
         )}
@@ -1274,6 +1471,7 @@ export default function TravelApp() {
       {/* 彈出視窗 */}
       {renderModal()}
       {renderPreviewNoteModal()}
+      {renderWeatherModal()}
     </div>
   );
 }
